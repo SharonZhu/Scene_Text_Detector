@@ -9,10 +9,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow as tf
 import numpy as np
 import linecache
@@ -30,13 +26,16 @@ from nets.vgg16  import VGG16
 from nets.fcn import FCN
 from EAST import EAST
 
+from data.image_util import *
+
 
 root_path = '/Users/zhuxinyue/Documents/EAST/'
+root_path = '../data/data/'
 data_dir = root_path + 'text_data/'
 ann_dir = root_path + 'annotation_json/'
 # test_pair_dir = '../data/pair_txt/img_ann_pair_test.txt'
-test_pair_dir = '../data/pair_txt/img_ann_pair_train500.txt'
-logs_train_dir = "../outmodel/logs_500/train/"
+test_pair_dir = root_path + '/pair_txt/img_ann_pair_train500.txt'
+logs_train_dir = root_path + "/out_model/modle500canny/"
 
 NUM_TEST = 500
 BATCH_SIZE = 1
@@ -68,7 +67,7 @@ def display_polygons(polys,color):
 def get_one_image(test_pair_dir, crop=False):
     '''ramdomly get an image from specific path'''
     item = linecache.getline(filename=test_pair_dir,lineno=np.random.randint(0,NUM_TEST)+1)
-    item_split = item.split(sep=',')
+    item_split = item.split(',')
 
     # read and process image
     print(data_dir + item_split[0])
@@ -92,11 +91,6 @@ def get_one_image(test_pair_dir, crop=False):
 
     if crop:
 
-        # cropping test:
-        from data.image_util import create_random_sample
-        from data.image_util import crop_area
-        from data.image_util import pad_and_resize
-
         image_array, quad = create_random_sample(image_array,quad)
         print('rand', image_array.shape, image_array.dtype)
 
@@ -116,6 +110,10 @@ def get_one_image(test_pair_dir, crop=False):
     else:
         display_image(image,gray=False)
         display_polygons(quad,'red')
+
+        display_image(image,gray=False)
+        display_polygons(quad,'red')
+
 
         image_array = np.array(misc.imresize(image,[stand_img_h,stand_img_w]) , dtype=np.float32)
         image_array = np.array(image_array)
@@ -160,22 +158,30 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
     print(coord_list)
 
     num_bbox = len(coord_list)
-    bbox = np.empty(shape=[num_bbox,8],dtype=np.float32)
+    bbox = np.empty(shape=[num_bbox, 8], dtype=np.float32)
 
     if mode == 'rbox':
         d = input_box[:,:,:4]
         angle = input_box[:,:,4]
 
         for j in range(num_bbox):
-            # the coord of a picked pixel
-            pixelx = coord_list[j][0]
-            pixely = coord_list[j][1]
-            per_d = d[pixelx,pixely,:]
 
-            if angle[pixelx,pixely] <= 20:
-                per_bbox_x = np.array([[pixelx-per_d[1]],[pixelx+per_d[3]],[pixelx+per_d[3]],[pixelx-per_d[1]]],
+            if j % 5 !=0:
+                continue
+
+            # the coord of a picked pixel
+            index_0 = coord_list[j][0]
+            index_1 = coord_list[j][1]
+
+            per_d = d[index_0, index_1, :]
+
+            pixelx = index_1
+            pixely = index_0
+
+            if angle[index_0, index_1] <= 45:
+                per_bbox_x = np.array([[pixelx - per_d[3]], [pixelx + per_d[1]], [pixelx + per_d[1]], [pixelx - per_d[3]]],
                                          dtype=np.float32)
-                per_bbox_y = np.array([[pixely+per_d[0]],[pixely+per_d[0]],[pixely-per_d[2]],[pixely-per_d[2]]],
+                per_bbox_y = np.array([[pixely - per_d[0]], [pixely - per_d[0]], [pixely + per_d[2]], [pixely + per_d[2]]],
                                          dtype=np.float32)
 
                 # resize the according quadbox
@@ -186,6 +192,11 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
 
                 current_axis = plt.gca()
                 current_axis.add_patch(Polygon(xy=per_bbox, linewidth=0.2, alpha=1, fill=None, edgecolor='yellow'))
+
+                per_bbox_x_p = (pixelx / stand_img_w) * width
+                per_bbox_y_p = (pixely / stand_img_w) * height
+
+                current_axis.scatter(per_bbox_x_p, per_bbox_y_p, color='green')
 
                 per_bbox = np.reshape(per_bbox, [1, 8])
 
@@ -236,7 +247,8 @@ def detect_one_image():
         # image = tf.cast(image_array, tf.float32)
         rgb = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE,stand_img_h, stand_img_w, 3])
 
-        my_vgg16 = VGG16('../pre_data/vgg16.npy')
+        my_vgg16 = VGG16(root_path + 'preNETS/vgg16.npy')
+        # my_vgg16 = VGG16('/Users/zhuxinyue/Documents/EAST_Project/pre_data/vgg16.npy')
         with tf.name_scope('netVgg16') as netVgg16:
             my_vgg16.build(rgb)
 
@@ -263,10 +275,13 @@ def detect_one_image():
         with tf.Session() as sess:
             print("Reading checkpoints...")
             ckpt = tf.train.get_checkpoint_state(logs_train_dir)
+            print(logs_train_dir)
 
             if ckpt and ckpt.model_checkpoint_path:
                 global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
-                saver.restore(sess,ckpt.model_checkpoint_path)
+                print(global_step)
+                print(ckpt.model_checkpoint_path)
+                saver.restore(sess, ckpt.model_checkpoint_path)
                 print("successful loading, global step is %s" %global_step)
 
             else:
@@ -276,7 +291,7 @@ def detect_one_image():
             pred_s,pred_r = sess.run([predict_score,predict_rbox],feed_dict={rgb:image_array})
             print('predict score', pred_s)
             # print(pred_q)
-            pred_bbox_rbox = restore_geo(mode='rbox',score_map_thresh=0.8,input_score=pred_s,input_box=pred_r,
+            pred_bbox_rbox = restore_geo(mode='rbox',score_map_thresh=0.9, input_score=pred_s,input_box=pred_r,
                                     height=img_h,width=img_w)
             # pred_bbox_quad = restore_geo(mode='quad', score_map_thresh=0.65, input_score=pred_s, input_box=pred_q,
             #                         height=img_h, width=img_w)

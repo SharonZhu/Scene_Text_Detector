@@ -15,7 +15,7 @@ import cv2
 from matplotlib.patches import Polygon
 import matplotlib.pyplot as plt
 
-def pixel_geo_generation(pixelx,pixely,quad):
+def pixel_geo_generation(pixelx, pixely, min_area_rect, rect_box, quad):
     '''
     provide rbox or quad label
     :param pixelx/y: coord of a pixel to calculate
@@ -25,14 +25,11 @@ def pixel_geo_generation(pixelx,pixely,quad):
     '''
     #rbox generation
     label_rbox = np.empty([1,5],dtype=np.float32)
-    min_area_rect = cv2.minAreaRect(quad)
-    #((centerx,centery), (height, width), angle)
-    rect_box = cv2.boxPoints(min_area_rect)
-    rect_box = np.round(rect_box)  # for points of the rect(right-top,anti-clockwise)
 
     for i in range(4):
-        label_rbox[0,i] = geo.p_to_l_dist(rect_box[i],rect_box[(i+1)%4],(pixelx,pixely))
-        #four distances towards top,left,bottom,right
+        # print(rect_box[i],rect_box[(i+1)%4], (pixely, pixelx))
+        label_rbox[0,i] = geo.p_to_l_dist(rect_box[i],rect_box[(i+1)%4], (pixely, pixelx))
+        #four distances towards bottom, left, top, right
     label_rbox[0,4] = 90 + min_area_rect[2] #angle
 
     #quad generation
@@ -56,44 +53,84 @@ def label_generation(row_pixel,line_pixel,quad_gt_in,ratio):
     num_quad = quad_gt_in.shape[0]  #number of quad in an image
 
     for k in range(num_quad):
-        print('processing...',k)
-        quad_gt = np.reshape(quad_gt_in[k, :],[4,2])
+        print('processing...', k)
+        quad_gt = np.reshape(quad_gt_in[k, :], [4, 2])
+
+        # Calculate min_area_rect
+        min_area_rect = cv2.minAreaRect(quad_gt)
+        # ((centerx,centery), (height, width), angle)
+        rect_box = cv2.boxPoints(min_area_rect)
+        rect_box = np.round(rect_box)  # for points of the rect(right-top,anti-clockwise)
+        arg_min_xy = np.argmin(rect_box, axis=0)
+
+        arg_min_y = arg_min_xy[1]
+        rect_box = np.array([rect_box[arg_min_y], rect_box[(arg_min_y + 1) % 4], rect_box[(arg_min_y + 2) % 4],
+                             rect_box[(arg_min_y + 3) % 4]])
+        # print(rect_box)
+
         quad_gt_sh18, quad_gt_sh42 = geo.shrink_quad(quad_gt, ratio=ratio)
 
         # test quad:
-        current_axis = plt.gca()
-        current_axis.add_patch(Polygon(xy=quad_gt, linewidth=1, alpha=1, fill=None, edgecolor='yellow'))
+        # import matplotlib.pyplot as plt
+        # from matplotlib.patches import Polygon
+        # current_axis = plt.gca()
+        # current_axis.add_patch(Polygon(xy=quad_gt_sh42, linewidth=1, alpha=1, fill=None, edgecolor='yellow'))
 
         for i in range(row_pixel):
             for j in range(line_pixel):
-                    if (cv2.pointPolygonTest(contour=quad_gt_sh42,pt=(i,j),measureDist=False)) == 1:
-                        pixel_set[i,j,0] = 1
-                        pixel_set[i,j,1:6],pixel_set[i,j,6:14] = pixel_geo_generation(i,j,quad_gt)
+                    if (cv2.pointPolygonTest(contour=quad_gt_sh42, pt=(j, i), measureDist=False)) == 1:
+
+                        pixel_set[i ,j, 0] = 1
+                        pixel_set[i, j, 1:6], pixel_set[i, j, 6:14] = pixel_geo_generation(i, j,
+                                                                                      min_area_rect=min_area_rect,
+                                                                                      rect_box=rect_box,
+                                                                                      quad=quad_gt)
                         pixel_set[i,j,14] = geo.min_line_for_quad(quad_gt)
+
     return pixel_set
 
 def label_generation_with_canny(row_pixel, line_pixel, quad_gt_in, canny_weight, bias):
 
     pixel_set = np.zeros([row_pixel, line_pixel, 16], dtype=np.float32)
     num_quad = quad_gt_in.shape[0]  # number of quad in an image
-    pixel_set_ = np.zeros([row_pixel, line_pixel], dtype=np.float32)
+
+    print(quad_gt_in)
 
     for k in range(num_quad):
         print('processing...', k)
         quad_gt = np.reshape(quad_gt_in[k, :], [4, 2])
 
+
+        # Calculate min_area_rect
+        min_area_rect = cv2.minAreaRect(quad_gt)
+        # ((centerx,centery), (height, width), angle)
+        rect_box = cv2.boxPoints(min_area_rect)
+        rect_box = np.round(rect_box)  # for points of the rect(right-top,anti-clockwise)
+        arg_min_xy = np.argmin(rect_box, axis=0)
+
+        arg_min_y = arg_min_xy[1]
+        rect_box = np.array([rect_box[arg_min_y], rect_box[(arg_min_y + 1)%4], rect_box[(arg_min_y + 2)%4],
+                             rect_box[(arg_min_y + 3)%4]])
+        # print(rect_box)
+
         # test quad:
-        current_axis = plt.gca()
-        current_axis.add_patch(Polygon(xy=quad_gt, linewidth=1, alpha=1, fill=None, edgecolor='yellow'))
+        # current_axis = plt.gca()
+        # current_axis.add_patch(Polygon(xy=quad_gt, linewidth=1, alpha=1, fill=None, edgecolor='yellow'))
 
         for i in range(row_pixel):
             for j in range(line_pixel):
-                if (cv2.pointPolygonTest(contour=quad_gt, pt=(i, j), measureDist=False)) == 1:
+                if (cv2.pointPolygonTest(contour=quad_gt, pt=(j, i), measureDist=False)) == 1:
 
                     pixel_set[i, j, 0] = 1
-                    pixel_set[i, j, 1:6], pixel_set[i, j, 6:14] = pixel_geo_generation(i, j, quad_gt)
+                    pixel_set[i, j, 1:6], pixel_set[i, j, 6:14] = pixel_geo_generation(i, j,
+                                                                                       min_area_rect=min_area_rect,
+                                                                                       rect_box=rect_box,
+                                                                                       quad=quad_gt)
                     pixel_set[i, j, 14] = geo.min_line_for_quad(quad_gt)
-                    pixel_set[i, j, 15] = canny_weight[j, i]
+                    pixel_set[i, j, 15] = canny_weight[i, j] * 2 + bias * 2
+                elif pixel_set[i, j, 0] != 1:
+                    pixel_set[i, j, 15] = max(0, canny_weight[i, j] * 3)
 
     pixel_set[:, :, 15] += bias
+
     return pixel_set

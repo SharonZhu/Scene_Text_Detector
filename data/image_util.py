@@ -46,7 +46,7 @@ def canny_generation(img, G_ksize):
     :param bias:
     :return:
     '''
-    canny = cv2.Canny(img, 50,150)
+    canny = cv2.Canny(img, 2, 50)
     canny = np.array(canny, dtype=np.float32)
 
     canny_blur = cv2.GaussianBlur(canny, (G_ksize, G_ksize), 0)
@@ -59,7 +59,8 @@ def canny_generation(img, G_ksize):
     regular = canny_max /2
 
     canny_weight = canny_blur / regular
-
+    print(regular)
+    print(canny_weight)
     # display_image(canny_weight, gray='False')
 
     return canny, canny_blur, canny_weight
