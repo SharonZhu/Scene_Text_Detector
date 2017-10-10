@@ -20,27 +20,32 @@ from nets.vgg16  import VGG16
 from nets.fcn import FCN
 from EAST import EAST
 
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-tf_root_path = 'data/tfrecords/'
-tfrecords_filename_train = tf_root_path + 'train_train.tfrecords'
-tfrecords_filename_valid = tf_root_path + 'train_valid.tfrecords'
-tfrecords_filename_test = tf_root_path + 'train_test.tfrecords'
+root_path = '../data/data/'
+
+CANNY = sys.argv[1] # 'canny or nocanny'
+tfrecords_filename_train = root_path + 'tfrecords/' + CANNY + '/' + 'train_train.tfrecords'
+tfrecords_filename_valid = root_path + 'tfrecords/' + CANNY + '/' +  'train_valid.tfrecords'
+tfrecords_filename_test = root_path + 'tfrecords/' + CANNY + '/' +  'train_test.tfrecords'
+
+logs_train_dir = root_path + 'out_model/logs/train/' + CANNY
+logs_val_dir = root_path + 'out_model/logs/val/' + CANNY
 
 img_h = 512
 img_w = 512
-CANNY = False
 
 starter_learing_rate = 1e-3
-bound_step = 15000
-BATCH_SIZE = 5
-CAPACITY = 10 + 3 * BATCH_SIZE
-MAX_STEP = 6000
-NUM_EPOCH = 1500
-min_after_dequeue = 10
+bound_step = int(sys.argv[2])
+BATCH_SIZE = 12
+CAPACITY = 1000 + 3 * BATCH_SIZE
+MAX_STEP = int(sys.argv[3])
+NUM_EPOCH = int(sys.argv[4])
+min_after_dequeue = 800
 
-SUMMARY_STEP = 500
-CKP_STEP = 1000
-VAL_STEP = 20000
+SUMMARY_STEP = int(sys.argv[5])
+CKP_STEP = SUMMARY_STEP * 4
+VAL_STEP = SUMMARY_STEP * 4
 
 def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
@@ -65,7 +70,7 @@ def read_and_decode(filename_queue):
     print(image.shape)
 
     ann = tf.decode_raw(features['ann_raw'], tf.float32)
-    if CANNY:
+    if CANNY == 'canny':
         ann = tf.reshape(ann, [img_h, img_w, 16])
     else:
         ann = tf.reshape(ann, [img_h, img_w, 15])
@@ -132,16 +137,14 @@ def training(loss):
 
 
 def run_training():
-    logs_train_dir = '../outmodel/logs/train'
-    logs_val_dir = '../outmodel/logs/val'
 
     rgb = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE, img_h, img_w, 3])
-    if CANNY:
+    if CANNY == 'canny':
         labels = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE, img_h, img_w, 16])
     else:
         labels = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE, img_h, img_w, 15])
 
-    my_vgg16 = VGG16('../pre_data/vgg16.npy')
+    my_vgg16 = VGG16(root_path + 'pre_NETS/vgg16.npy')
     with tf.name_scope('netVgg16') as netVgg16:
         my_vgg16.build(rgb)
 
@@ -159,11 +162,11 @@ def run_training():
         train_loss = my_east.loss(canny=CANNY)
 
     train_images, train_anns, train_height, train_width = inputs(set='train', batch_size=BATCH_SIZE,num_epochs=NUM_EPOCH)
-    print('train_images:',train_images)
-    print('train_anns:',train_anns)
+    print('train_images:', train_images)
+    print('train_anns:', train_anns)
 
-    # valid_images, valid_anns, valid_height, valid_width = inputs(set='valid', batch_size=BATCH_SIZE,
-    #                                                              num_epochs=NUM_EPOCH)
+    valid_images, valid_anns, valid_height, valid_width = inputs(set='valid', batch_size=BATCH_SIZE,
+                                                                  num_epochs=NUM_EPOCH)
 
     train_op = training(train_loss)
 
@@ -215,10 +218,10 @@ def run_training():
                 if step % VAL_STEP == 0 or (step+1) == MAX_STEP:
                     val_images,val_labels = sess.run([valid_images,valid_anns])
                     val_loss = sess.run([train_loss],
-                                        feed_dict={rgb: val_images, labels: val_labels})
+                                         feed_dict={rgb: val_images, labels: val_labels})
                     print('**val_loss in step ', step)
                     print(val_loss)
-                    #print('**  Step %d, val loss = %.4f' % (step, val_loss))
+                    print('**  Step %d, val loss = %.4f' % (step, val_loss))
                     summary_str = sess.run(summary_op,feed_dict={rgb: val_images, labels: val_labels})
                     val_writer.add_summary(summary_str, step)
 

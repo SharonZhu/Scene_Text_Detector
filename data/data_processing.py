@@ -9,31 +9,35 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 from data.tf_util import write_img_ann_pairs_to_tfrecord
 
-data_root_path = '/Users/zhuxinyue/Documents/EAST/'
-tf_root_path = 'tfrecords/'
+root_path = '../data/'
 
-data_dir = data_root_path + 'text_data/'
-ann_dir = data_root_path + 'annotation_json/'
+data_dir = root_path + 'text_data/'
+ann_dir = root_path + 'annotation_json/'
+filename_pairs = [root_path + 'pair_txt/' + 'img_ann_pair_train.txt',
+                  root_path + 'pair_txt/' + 'img_ann_pair_valid.txt',
+                  root_path + 'pair_txt/' + 'img_ann_pair_test.txt']
 
-filename_pairs = ['pair_txt/img_ann_pair_train.txt',
-                  'pair_txt/img_ann_pair_valid.txt',
-                  'pair_txt/img_ann_pair_test.txt']
-filename_pairs_test = ['../pair_txt/img_ann_pair_train500.txt']
+# filename_pairs_test = ['../pair_txt/img_ann_pair_train500.txt']
 
-tfrecords_filename_train = tf_root_path + 'train_train.tfrecords'
-tfrecords_filename_valid = tf_root_path + 'train_valid.tfrecords'
-tfrecords_filename_test = tf_root_path + 'train_test.tfrecords'
-tfrecords_filename = [tfrecords_filename_train,tfrecords_filename_valid,tfrecords_filename_test]
+CANNY = sys.argv[1]  # 'canny or nocanny'
+CANNY_BIAS = 0.02
+
+tfrecords_filename = [root_path + 'tfrecords/' + CANNY + '/' + 'train_train.tfrecords',
+                      root_path + 'tfrecords/' + CANNY + '/' + 'train_valid.tfrecords',
+                      root_path + 'tfrecords/' + CANNY + '/' + 'train_test.tfrecords']
+
+#standard image height and width
+stand_img_h = 512
+stand_img_w = 512
 
 MODE = 'TRAIN'
 
 if __name__ == '__main__':
     if MODE == 'TRAIN':
         for i in range(3):
-            write_img_ann_pairs_to_tfrecord(filename_pairs[i], data_dir, ann_dir, tfrecords_filename[i],
-                                            random_crop=False, crop_num=None)
+            write_img_ann_pairs_to_tfrecord(filename_pairs[i], data_dir, ann_dir, tfrecords_filename[i])
     if MODE == 'OTHER':
-        write_img_ann_pairs_to_tfrecord(filename_pairs_test, data_dir, ann_dir, tfrecords_filename[0],
-                                        random_crop=False, crop_num=None)
+        write_img_ann_pairs_to_tfrecord(filename_pairs[2], data_dir, ann_dir, tfrecords_filename[0])

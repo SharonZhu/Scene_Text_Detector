@@ -18,7 +18,7 @@ import cv2
 stand_img_h = 512
 stand_img_w = 512
 
-def display_image(image, gray):
+def display_image(image, gray=False):
     dis_image = image.astype(np.uint8)
     plt.figure()
 
@@ -33,6 +33,9 @@ def display_polygons(polys,color):
     :param color:
     :return:
     '''
+    if polys.shape[1] == 8:
+        polys = np.reshape(polys, [-1, 4, 2])
+
     for p in range(polys.shape[0]):
         current_axis = plt.gca()
         current_axis.add_patch(
@@ -63,7 +66,7 @@ def canny_generation(img, G_ksize):
     print(canny_weight)
     # display_image(canny_weight, gray='False')
 
-    return canny, canny_blur, canny_weight
+    return canny_weight
 
 def create_random_sample(image,quad):
     '''

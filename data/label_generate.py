@@ -94,7 +94,6 @@ def label_generation_with_canny(row_pixel, line_pixel, quad_gt_in, canny_weight,
     pixel_set = np.zeros([row_pixel, line_pixel, 16], dtype=np.float32)
     num_quad = quad_gt_in.shape[0]  # number of quad in an image
 
-    print(quad_gt_in)
 
     for k in range(num_quad):
         print('processing...', k)

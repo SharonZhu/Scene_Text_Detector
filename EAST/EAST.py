@@ -1,12 +1,10 @@
-#!/bin/env python
-"""
-EAST.py
-Created on 2017/7/14 15:19'
-Describe  : 
-Athor      : Jin Hou
-Email      : 44show@gmail.com
-Company : Beijing Linkface co. lot. 
-"""
+# -*- coding: utf-8 -*-
+# @Time     : 2017/8/31  上午11:10
+# @Author   : Zhuxinyue_Sharon
+# @Email    : zxybuptsee@163.com
+# @File     : test.py
+# @Software : PyCharm
+
 import sys
 
 import tensorflow as tf
@@ -37,9 +35,8 @@ class EAST(object):
         pass
 
         with tf.name_scope('loss'):
-
             score_map_pred = self.inference_map_score()
-            if canny:
+            if canny == 'canny':
                 score_map_label, rbox_label, quad_label, canny_weight = tf.split(self.labels, [1, 5, 9, 1], 3)
                 loss_score_map = east_loss.loss_score_map_with_canny(score_map_pred, score_map_label, canny_weight)
                 tf.summary.scalar('loss_score_map_canny', loss_score_map)
@@ -47,8 +44,6 @@ class EAST(object):
                 score_map_label, rbox_label, quad_label = tf.split(self.labels, [1, 5, 9], 3)
                 loss_score_map = east_loss.loss_score_map(score_map_pred, score_map_label)
                 tf.summary.scalar('loss_score_map', loss_score_map)
-
-            # tf.summary.scalar('loss', score_map_pred)
 
             rbox_pred = self.inference_rbox()
             # tf.add_to_collection('loss', rbox_pred)

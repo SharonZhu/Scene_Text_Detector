@@ -5,9 +5,10 @@
 # @File     : test.py
 # @Software : PyCharm
 
-
-
 import tensorflow as tf
+import numpy as np
+
+
 
 def _smooth_l1_loss(box_pred, box_label, box_inside_weights = 1.0, box_outside_weights = 1.0, sigma=1.0, dim=[1]):
     sigma_2 = sigma ** 2

@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-# @Time     : 2017/8/31  上午11:22
+# @Time     : 2017/8/31  上午11:10
 # @Author   : Zhuxinyue_Sharon
 # @Email    : zxybuptsee@163.com
-# @File     : evaluate_once.py
+# @File     : test.py
 # @Software : PyCharm
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import copy
 import tensorflow as tf
 import numpy as np
 import linecache
@@ -25,53 +27,43 @@ sys.path.append('../')
 from nets.vgg16  import VGG16
 from nets.fcn import FCN
 from EAST import EAST
+from demo.nms import *
+import data.image_util as img
+# from demo.evaluation import Evaluate
 
-from data.image_util import *
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-
-root_path = '/Users/zhuxinyue/Documents/EAST/'
 root_path = '../data/data/'
 data_dir = root_path + 'text_data/'
 ann_dir = root_path + 'annotation_json/'
-# test_pair_dir = '../data/pair_txt/img_ann_pair_test.txt'
-test_pair_dir = root_path + '/pair_txt/img_ann_pair_train500.txt'
-logs_train_dir = root_path + "/out_model/modle500canny/"
+test_pair_dir = root_path + 'pair_txt/img_ann_pair_train15.txt'
+logs_train_dir_canny = root_path + 'out_model/logs/canny_20k/'
+logs_train_dir_nocanny = root_path + 'out_model/logs/train_nocanny/'
 
-NUM_TEST = 500
+NUM_TEST = 15
 BATCH_SIZE = 1
 #standard image height and width
 stand_img_h = 512
 stand_img_w = 512
 
-def display_image(image, gray):
-    dis_image = image.astype(np.uint8)
-    plt.figure()
 
-    if gray:
-        plt.imshow(dis_image, cmap='gray')
-    else:
-        plt.imshow(dis_image)
-
-def display_polygons(polys,color):
-    '''
-    :param polys: [N,4,2]
-    :param color:
-    :return:
-    '''
-    for p in range(polys.shape[0]):
-        current_axis = plt.gca()
-        current_axis.add_patch(
-        Polygon(xy=polys[p, :, :], linewidth=1, alpha=1, fill=None, edgecolor=color))
-
-
-def get_one_image(test_pair_dir, crop=False):
+def create_ramdom_dir(test_pair_dir):
     '''ramdomly get an image from specific path'''
-    item = linecache.getline(filename=test_pair_dir,lineno=np.random.randint(0,NUM_TEST)+1)
+    item = linecache.getline(filename=test_pair_dir, lineno=np.random.randint(0, NUM_TEST) + 1)
+    print('total_dir', item)
     item_split = item.split(',')
+    img_dir = data_dir + item_split[0]
+    print('image_dir', img_dir)
+    anno_dir = (ann_dir + item_split[1]).strip('\n')
+    print('ann_dir', anno_dir)
+
+    return img_dir, anno_dir
+
+def get_one_image(img_dir, anno_dir):
+    quad_origin = None
 
     # read and process image
-    print(data_dir + item_split[0])
-    image = misc.imread(data_dir + item_split[0])  # uint8
+    image = misc.imread(img_dir)  # uint8
     img_h = image.shape[0]  # int
     img_w = image.shape[1]
     print('img_h:',img_h)
@@ -80,7 +72,7 @@ def get_one_image(test_pair_dir, crop=False):
     image_array = np.array(image,dtype=np.float32)
     print(image.shape)
 
-    fa = open((ann_dir + item_split[1]).strip('\n'), 'r')
+    fa = open(anno_dir, 'r')
     ann_list = json.load(fa, object_pairs_hook=OrderedDict)
     # print(ann_list)
     quad = []
@@ -89,45 +81,28 @@ def get_one_image(test_pair_dir, crop=False):
     quad = np.array(quad, dtype=np.float32)  # [N,8]
     quad = np.reshape(quad, [-1, 4, 2])
 
-    if crop:
 
-        image_array, quad = create_random_sample(image_array,quad)
-        print('rand', image_array.shape, image_array.dtype)
+    img.display_image(image,gray=False)
+    img.display_polygons(quad,'red')
 
-        image_array, quad = crop_area(image_array, quad)
-        print('crop', image_array.shape, image_array.dtype)
+    img.display_image(image,gray=False)
+    img.display_polygons(quad,'red')
 
-        image_array, quad = pad_and_resize(image_array, quad)
-        print('pad and resize', image_array.shape, image_array.dtype)
+    quad_origin = copy.deepcopy(quad)
 
-        img_h, img_w, _ = image_array.shape
-
-        display_image(image_array, gray=False)
-        display_polygons(quad, 'red')
-
-        image_array = np.array(image_array, np.float32)
-
-    else:
-        display_image(image,gray=False)
-        display_polygons(quad,'red')
-
-        display_image(image,gray=False)
-        display_polygons(quad,'red')
-
-
-        image_array = np.array(misc.imresize(image,[stand_img_h,stand_img_w]) , dtype=np.float32)
-        image_array = np.array(image_array)
-        quad[:, :, 0] = (quad[: ,:, 0] * stand_img_w) / img_w
-        quad[:, :, 1] = (quad[:, :, 1] * stand_img_h) / img_h
+    image_array = np.array(misc.imresize(image,[stand_img_h,stand_img_w]) , dtype=np.float32)
+    image_array = np.array(image_array)
+    quad[:, :, 0] = (quad[: ,:, 0] * stand_img_w) / img_w
+    quad[:, :, 1] = (quad[:, :, 1] * stand_img_h) / img_h
 
     image_array = np.reshape(image_array, [1, stand_img_h, stand_img_w, 3])
 
-    return image_array,quad,img_h,img_w
+    return image_array, quad_origin, quad, img_h, img_w
 
 # get_one_image(test_pair_dir)
 
 
-def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
+def restore_geo(mode, score_map_thresh, input_score, input_box, height, width):
     '''
 
     :param mode: 'rbox' or 'quad'
@@ -142,8 +117,8 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
     input_score = input_score[0,:,:,0]
     input_box = input_box[0,:,:,:]
 
-    print('input_score',input_score)
-    print('input_box', input_box)
+    # print('input_score',input_score)
+    # print('input_box', input_box)
 
     # coord_array = np.where(input_score > 0.65)
     # coord_list = []
@@ -151,14 +126,13 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
     # for i in range(len(coord_array[0])):
     #     coord_list.append(np.array([coord_array[0][i], coord_array[1][i]]))
 
-
-
     coord_list = np.argwhere(input_score >= score_map_thresh)
     print (len(coord_list))
-    print(coord_list)
+    print(coord_list.shape)
 
     num_bbox = len(coord_list)
     bbox = np.empty(shape=[num_bbox, 8], dtype=np.float32)
+    prob = np.empty(shape=[num_bbox, 1], dtype=np.float32)
 
     if mode == 'rbox':
         d = input_box[:,:,:4]
@@ -166,12 +140,15 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
 
         for j in range(num_bbox):
 
-            if j % 5 !=0:
-                continue
+            # if j % 5 !=0:
+            #     continue
+
 
             # the coord of a picked pixel
             index_0 = coord_list[j][0]
             index_1 = coord_list[j][1]
+
+            prob[j,:] = (input_score[index_0, index_1])
 
             per_d = d[index_0, index_1, :]
 
@@ -190,17 +167,31 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
 
                 per_bbox = np.concatenate((per_bbox_x,per_bbox_y),axis=1)
 
-                current_axis = plt.gca()
-                current_axis.add_patch(Polygon(xy=per_bbox, linewidth=0.2, alpha=1, fill=None, edgecolor='yellow'))
+                # current_axis = plt.gca()
+                # current_axis.add_patch(Polygon(xy=per_bbox, linewidth=0.2, alpha=1, fill=None, edgecolor='yellow'))
 
-                per_bbox_x_p = (pixelx / stand_img_w) * width
-                per_bbox_y_p = (pixely / stand_img_w) * height
+                # per_bbox_x_p = (pixelx / stand_img_w) * width
+                # per_bbox_y_p = (pixely / stand_img_w) * height
 
-                current_axis.scatter(per_bbox_x_p, per_bbox_y_p, color='green')
+                # current_axis.scatter(per_bbox_x_p, per_bbox_y_p, color='green')
 
                 per_bbox = np.reshape(per_bbox, [1, 8])
 
                 bbox[j, :] = per_bbox
+
+        concat_bbox = np.concatenate((bbox, prob), axis=1)
+        print(concat_bbox.shape)
+
+        if concat_bbox.shape[0] == 0:
+            nms_bbox = np.array([])
+        else:
+            nms_bbox = nms_locality(concat_bbox, thres=0.25)
+            print(nms_bbox.shape)
+            nms_bbox = nms_bbox[:, :8]
+            nms_bbox = np.reshape(nms_bbox, [-1, 4, 2])
+            print(nms_bbox.shape)
+
+        # display_polygons(nms_bbox, 'yellow')
 
     if mode == 'quad':
         for j in range(num_bbox):
@@ -225,7 +216,7 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
 
             bbox[j,:] = per_bbox
 
-    return bbox
+    return bbox, nms_bbox
 
 # test restore_geo()
 # input_score = np.ones(shape=[1,2,2,1],dtype=np.float32)
@@ -239,16 +230,17 @@ def restore_geo(mode,score_map_thresh,input_score,input_box,height,width):
 # print(bbox)
 # print(bbox.shape)
 
-def detect_one_image():
-    image_array, quad, img_h, img_w = get_one_image(test_pair_dir)
+def detect_one_image(img_dir, anno_dir, logs_train_dir):
+    image_array, quad_origin, quad, img_h, img_w = get_one_image(img_dir, anno_dir)
     print("h and w", img_h,img_w)
+    print('logs_dir', logs_train_dir)
 
     with tf.Graph().as_default():
         # image = tf.cast(image_array, tf.float32)
         rgb = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE,stand_img_h, stand_img_w, 3])
 
         my_vgg16 = VGG16(root_path + 'preNETS/vgg16.npy')
-        # my_vgg16 = VGG16('/Users/zhuxinyue/Documents/EAST_Project/pre_data/vgg16.npy')
+
         with tf.name_scope('netVgg16') as netVgg16:
             my_vgg16.build(rgb)
 
@@ -288,20 +280,28 @@ def detect_one_image():
                 print("no checkpoint file founded")
                 return
 
-            pred_s,pred_r = sess.run([predict_score,predict_rbox],feed_dict={rgb:image_array})
-            print('predict score', pred_s)
+            pred_s,pred_r = sess.run([predict_score,predict_rbox], feed_dict={rgb:image_array})
+            # print('predict score', pred_s)
             # print(pred_q)
-            pred_bbox_rbox = restore_geo(mode='rbox',score_map_thresh=0.9, input_score=pred_s,input_box=pred_r,
+            pred_bbox_rbox, pred_nms_rbox = restore_geo(mode='rbox',score_map_thresh=0.95, input_score=pred_s,input_box=pred_r,
                                     height=img_h,width=img_w)
+
+            # if you want to evaluate one image:
+            '''
+            precision, recall, fscore = Evaluate(quad_origin, pred_nms_rbox, 0.5)
+            print('precision', precision)
+            print('recall', recall)
+            print('fscore', fscore)
+            '''
             # pred_bbox_quad = restore_geo(mode='quad', score_map_thresh=0.65, input_score=pred_s, input_box=pred_q,
             #                         height=img_h, width=img_w)
             print('predict rbox', pred_bbox_rbox)
 
-        plt.show()
-
 def main(argv=None):  # pylint: disable=unused-argument
-    detect_one_image()
-
+    img_dir, anno_dir = create_ramdom_dir(test_pair_dir)
+    detect_one_image(img_dir, anno_dir, logs_train_dir=logs_train_dir_nocanny)
+    detect_one_image(img_dir, anno_dir, logs_train_dir=logs_train_dir_canny)
+    plt.show()
 
 if __name__ == '__main__':
   tf.app.run()

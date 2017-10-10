@@ -1,9 +1,12 @@
-# -*- coding: utf-8 -*-
-# @Time     : 2017/8/31  上午11:10
-# @Author   : Zhuxinyue_Sharon
-# @Email    : zxybuptsee@163.com
-# @File     : test.py
-# @Software : PyCharm
+#!/bin/env python
+"""
+fcn.py
+Created on 2017/7/12 15:14'
+Describe  : use basenet to build FCN layers
+Athor      : Jin Hou
+Email      : 44show@gmail.com
+Company : Beijing Linkface co. lot. 
+"""
 
 from __future__ import absolute_import
 from __future__ import division
