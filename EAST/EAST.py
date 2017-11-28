@@ -18,13 +18,14 @@ import nets.fcn as fcn
 
 
 class EAST(object):
-    def __init__(self, input_layer, task='inference', labels=None, wei_loss=1.0):
+    def __init__(self, input_layer, task='inference', labels=None, wei_loss=1.0, is_training=True):
         pass
         self.input_layer = input_layer
         self.labels = labels
         self.task = task
         self.wei_loss = wei_loss
         self.layer = Layer()
+        self.is_training = is_training
 
 
 
@@ -46,8 +47,6 @@ class EAST(object):
                 tf.summary.scalar('loss_score_map', loss_score_map)
 
             rbox_pred = self.inference_rbox()
-            # tf.add_to_collection('loss', rbox_pred)
-
             loss_rbox = east_loss.rbox_aabb_loss(rbox_pred, rbox_label, score_map_label, 10)
             tf.summary.scalar('loss_rbox', loss_rbox)
 
@@ -68,7 +67,7 @@ class EAST(object):
 
 
 
-    def _inference(self, task_name, channel, relu=False ):
+    def _inference(self, task_name, channel, relu=False):
         pass
 
         name = task_name
@@ -76,7 +75,7 @@ class EAST(object):
         ksize = (1, 1, bottom_feat_num, channel)
 
         rbox = self.layer._conv_layer(self.input_layer, name=name, ksize=ksize,
-                                      top_feat_num=channel, stddev=1.0, relu=relu)
+                                      top_feat_num=channel, stddev=1.0, relu=relu, is_training=self.is_training)
 
         return rbox
 

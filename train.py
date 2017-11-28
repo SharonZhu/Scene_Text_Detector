@@ -20,8 +20,6 @@ from nets.vgg16  import VGG16
 from nets.fcn import FCN
 from EAST import EAST
 
-os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
-
 root_path = '../data/data/'
 
 CANNY = sys.argv[1] # 'canny or nocanny'
@@ -35,13 +33,13 @@ logs_val_dir = root_path + 'out_model/logs/val/' + CANNY
 img_h = 512
 img_w = 512
 
-starter_learing_rate = 1e-3
+starter_learing_rate = 1e-4
 bound_step = int(sys.argv[2])
-BATCH_SIZE = 12
+BATCH_SIZE = 10
 CAPACITY = 1000 + 3 * BATCH_SIZE
 MAX_STEP = int(sys.argv[3])
 NUM_EPOCH = int(sys.argv[4])
-min_after_dequeue = 800
+min_after_dequeue = 100
 
 SUMMARY_STEP = int(sys.argv[5])
 CKP_STEP = SUMMARY_STEP * 4
@@ -131,7 +129,10 @@ def training(loss):
         tf.summary.scalar('learning_rate', learning_rate)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        train_op = optimizer.minimize(loss,global_step=global_step)
+        # update Batch Norm:
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_op = optimizer.minimize(loss, global_step=global_step)
     return train_op
 
 
@@ -146,7 +147,7 @@ def run_training():
 
     my_vgg16 = VGG16(root_path + 'pre_NETS/vgg16.npy')
     with tf.name_scope('netVgg16') as netVgg16:
-        my_vgg16.build(rgb)
+        my_vgg16.build(rgb, is_training=True)
 
     my_fcn = FCN(my_vgg16)
     with tf.name_scope('netFCN') as netFCN:
@@ -154,9 +155,9 @@ def run_training():
         'need_layers = [('pool5', stride, up_fea_num, conv1_ksize, conv2_ksize, conv1_out_feat_num, conv2_out_feat_num), ('pool4', 16, out_fea_num)]'
         '''
         my_fcn.build([('pool5', 2, 64, 1, 3, 128, 128), ('pool4', 2, 64, 1, 3, 96, 64), ('pool3', 2, 32, 1, 3, 64, 32),
-                      ('pool2', 4, 32, 1, 3, 32, 32), ('bgr', 3, 32)], fuse_type='concat', debug=False)
+                      ('pool2', 4, 32, 1, 3, 32, 32), ('bgr', 3, 32)], fuse_type='concat', debug=False, is_training=True)
 
-    my_east = EAST.EAST(my_fcn.out_layer, task='train', labels=labels)
+    my_east = EAST.EAST(my_fcn.out_layer, task='train', labels=labels, is_training=True)
 
     with tf.name_scope('netEAST') as netEAST:
         train_loss = my_east.loss(canny=CANNY)

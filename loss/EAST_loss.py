@@ -149,13 +149,13 @@ def loss_score_map(pixel_pred,pixel_targets):
         # loss_score = tf.reduce_mean(tf.reduce_sum(ls, 1))
         loss_score = tf.reduce_sum(tf.reduce_mean(ls))
 
-        pos_p = tf.where(tf.greater(pixel_targets, 0.0))
-        # pos_ = tf.gather_nd(ls, pos_select)
-        neg_p = tf.where(tf.less_equal(pixel_targets, 0.0))
-        # neg_ = tf.gather_nd(ls, neg_select)
-        def tmf(x, sel):
-            return tf.gather_nd(x, sel)
-
+        # pos_p = tf.where(tf.greater(pixel_targets, 0.0))
+        # # pos_ = tf.gather_nd(ls, pos_select)
+        # neg_p = tf.where(tf.less_equal(pixel_targets, 0.0))
+        # # neg_ = tf.gather_nd(ls, neg_select)
+        # def tmf(x, sel):
+        #     return tf.gather_nd(x, sel)
+        '''
         tf.add_to_collection('loss', tmf(pixel_pred, pos_p))
         tf.add_to_collection('loss', tmf(sig_pred, pos_p))
         tf.add_to_collection('loss', tmf(tf.log(sig_pred), pos_p))
@@ -172,7 +172,7 @@ def loss_score_map(pixel_pred,pixel_targets):
         tf.add_to_collection('loss', tf.reduce_sum(tf.reduce_mean(tmf(ls, pos_p))))
         tf.add_to_collection('loss', tf.reduce_sum(tf.reduce_mean(tmf(ls, neg_p))))
         tf.add_to_collection('loss', loss_score)
-
+        '''
     return loss_score
 
 
@@ -200,13 +200,13 @@ def loss_score_map_with_canny(pixel_pred, pixel_targets, canny_weight):
         # loss_score = tf.reduce_mean(tf.reduce_sum(ls, 1))
         loss_score = tf.reduce_sum(tf.reduce_mean(ls))
 
-        pos_p = tf.where(tf.greater(pixel_targets, 0.0))
+        # pos_p = tf.where(tf.greater(pixel_targets, 0.0))
         # pos_ = tf.gather_nd(ls, pos_select)
-        neg_p = tf.where(tf.less_equal(pixel_targets, 0.0))
+        # neg_p = tf.where(tf.less_equal(pixel_targets, 0.0))
         # neg_ = tf.gather_nd(ls, neg_select)
-        def tmf(x, sel):
-            return tf.gather_nd(x, sel)
-
+        # def tmf(x, sel):
+        #     return tf.gather_nd(x, sel)
+        '''
         tf.add_to_collection('loss', tmf(pixel_pred, pos_p))
         tf.add_to_collection('loss', tmf(sig_pred, pos_p))
         tf.add_to_collection('loss', tmf(tf.log(sig_pred), pos_p))
@@ -223,7 +223,7 @@ def loss_score_map_with_canny(pixel_pred, pixel_targets, canny_weight):
         tf.add_to_collection('loss', tf.reduce_sum(tf.reduce_mean(tmf(ls, pos_p))))
         tf.add_to_collection('loss', tf.reduce_sum(tf.reduce_mean(tmf(ls, neg_p))))
         tf.add_to_collection('loss', loss_score)
-
+        '''
     return loss_score
 
 
@@ -249,31 +249,5 @@ def loss_score_map_with_canny(pixel_pred, pixel_targets, canny_weight):
 
 
 
-if __name__ == '__main__':
-    bottom_pred = tf.random_uniform([2,3,4,5])
-    bottom_pred_1 = tf.random_uniform([2, 3, 4, 8])
-
-    bottom_labels = tf.random_uniform([2,3,4,5])
-    bottom_labels_1 = tf.random_uniform([2, 3, 4, 9])
-
-    select = tf.random_uniform([2, 3, 4, 1], dtype=tf.float32)
-    loss = rbox_aabb_loss(bottom_pred, bottom_labels, select)
-    loss1 = quad_loss(bottom_pred_1, bottom_labels_1, select)
-
-    bottom_pred_2 = tf.random_uniform([2,3,4,1])
-    bottom_labels_2 = tf.random_uniform([2, 3, 4, 1])
-    loss2 = loss_score_map(bottom_pred_2, bottom_labels_2)
-
-    sess = tf.Session()
-    need = []
-    # need = [select, bottom_pred, bottom_labels, loss, bottom_pred_1, bottom_labels_1, loss1,
-    # 'quad_loss/min_loss_list:0', 'quad_loss/min_loss:0']
-    need = [loss, loss1, loss2]
-    res = sess.run(need)
-
-    #image.set_shape([mnist.IMAGE_PIXELS])
-
-    for x in res:
-        print(x)
 
 

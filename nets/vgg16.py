@@ -17,6 +17,7 @@ import sys
 
 import numpy as np
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 
 from netlayers.layer import Layer
 
@@ -50,8 +51,8 @@ class VGG16(object):
         # save all layer for fcn
         self.layer_dict = {}
 
-    def build(self, rgb, need_fc=False, train=False, num_classes=20, random_init_fc8=False,
-              debug=False,):
+    def build(self, rgb, is_training=True, need_fc=False, train=False, num_classes=20, random_init_fc8=False,
+              debug=False):
         """
         Build the VGG model using loaded weights
         Parameters
@@ -69,7 +70,7 @@ class VGG16(object):
             Whether to print additional Debug Information.
         """
         # Convert RGB to BGR
-
+        print('is_training', is_training)
         with tf.name_scope('Processing'):
             # rgb = tf.image.convert_image_dtype(rgb, tf.float32)
             red, green, blue = tf.split(rgb, 3, 3)
@@ -86,35 +87,34 @@ class VGG16(object):
                                message='Shape of input image: ',
                                summarize=4, first_n=1)
 
-        self.conv1_1 = self.layer._conv_layer(bgr, "conv1_1")
+        self.conv1_1 = self.layer._conv_layer(bgr, "conv1_1", is_training=is_training)
         self.layer_dict["conv1_1"] = self.conv1_1
-        self.conv1_2 = self.layer._conv_layer(self.conv1_1, "conv1_2")
+        self.conv1_2 = self.layer._conv_layer(self.conv1_1, "conv1_2", is_training=is_training)
         self.layer_dict["conv1_2"] = self.conv1_2
         self.pool1 = self.layer._max_pool(self.conv1_2, 'pool1', debug)
         self.layer_dict["bgr"] = bgr
         self.layer_dict["pool1"] = self.pool1
 
-        self.conv2_1 = self.layer._conv_layer(self.pool1, "conv2_1")
-        self.conv2_2 = self.layer._conv_layer(self.conv2_1, "conv2_2")
+        self.conv2_1 = self.layer._conv_layer(self.pool1, "conv2_1", is_training=is_training)
+        self.conv2_2 = self.layer._conv_layer(self.conv2_1, "conv2_2", is_training=is_training)
         self.pool2 = self.layer._max_pool(self.conv2_2, 'pool2', debug)
         self.layer_dict["pool2"] = self.pool2
 
-        self.conv3_1 = self.layer._conv_layer(self.pool2, "conv3_1")
-        self.conv3_2 = self.layer._conv_layer(self.conv3_1, "conv3_2")
-        self.conv3_3 = self.layer._conv_layer(self.conv3_2, "conv3_3")
+        self.conv3_1 = self.layer._conv_layer(self.pool2, "conv3_1", is_training=is_training)
+        self.conv3_2 = self.layer._conv_layer(self.conv3_1, "conv3_2", is_training=is_training)
+        self.conv3_3 = self.layer._conv_layer(self.conv3_2, "conv3_3", is_training=is_training)
         self.pool3 = self.layer._max_pool(self.conv3_3, 'pool3', debug)
         self.layer_dict["pool3"] = self.pool3
 
-        self.conv4_1 = self.layer._conv_layer(self.pool3, "conv4_1")
-        self.conv4_2 = self.layer._conv_layer(self.conv4_1, "conv4_2")
-        self.conv4_3 = self.layer._conv_layer(self.conv4_2, "conv4_3")
+        self.conv4_1 = self.layer._conv_layer(self.pool3, "conv4_1", is_training=is_training)
+        self.conv4_2 = self.layer._conv_layer(self.conv4_1, "conv4_2", is_training=is_training)
+        self.conv4_3 = self.layer._conv_layer(self.conv4_2, "conv4_3", is_training=is_training)
         self.pool4 = self.layer._max_pool(self.conv4_3, 'pool4', debug)
         self.layer_dict["pool4"] = self.pool4
 
-        self.conv5_1 = self.layer._conv_layer(self.pool4, "conv5_1")
-        self.conv5_2 = self.layer._conv_layer(self.conv5_1, "conv5_2")
-
-        self.conv5_3 = self.layer._conv_layer(self.conv5_2, "conv5_3")
+        self.conv5_1 = self.layer._conv_layer(self.pool4, "conv5_1", is_training=is_training)
+        self.conv5_2 = self.layer._conv_layer(self.conv5_1, "conv5_2", is_training=is_training)
+        self.conv5_3 = self.layer._conv_layer(self.conv5_2, "conv5_3", is_training=is_training)
         self.pool5 = self.layer._max_pool(self.conv5_3, 'pool5', debug)
         self.layer_dict["pool5"] = self.pool5
 
@@ -150,7 +150,7 @@ class VGG16(object):
 
 if __name__ == "__main__":
     print('test vgg16')
-    my_vgg16 = VGG16('/Users/lf-workspace/DL/TF/detect/EAST_AnEfficientAccurateSceneTextDetector/pre_data/vgg16.npy')
-    rgb = tf.placeholder(dtype=tf.float32, shape=[None, 500, 200, 3])
+    my_vgg16 = VGG16('../../data/pre_NETS/vgg16.npy')
+    rgb = tf.placeholder(dtype=tf.float32, shape=[12, 512, 512, 3])
     with tf.name_scope('testVgg16') as testVgg16:
-        my_vgg16.build(rgb)
+        my_vgg16.build(rgb, is_training=False)

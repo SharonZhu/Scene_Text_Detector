@@ -17,11 +17,10 @@ import sys
 
 import numpy as np
 import tensorflow as tf
-
+import tensorflow.contrib.slim as slim
 
 
 class Layer(object):
-
     def __init__(self, weight_dict=None, wd=0.001):
         self.data_dict = weight_dict
         self.wd = wd
@@ -36,27 +35,34 @@ class Layer(object):
                             summarize=4, first_n=1)
         return pool
 
-    def _conv_layer(self, bottom, name, ksize=None, top_feat_num=1, stddev=0.001,relu=True):
+    def _conv_layer(self, bottom, name, ksize=None, top_feat_num=1, stddev=0.001, is_training=True, relu=True, bn=True):
         with tf.variable_scope(name) as scope:
 
             print(name, 'bottom.shape', bottom.shape)
             filt = self.get_conv_filter(name, ksize, stddev)
-            tf.summary.histogram('filter11',filt)
+            tf.summary.histogram('filter11', filt)
             print(name, 'filt.shape', filt.shape)
             conv = tf.nn.conv2d(bottom, filt, [1, 1, 1, 1], padding='SAME')
             print(name, 'conv.shape', conv.shape)
             conv_biases = self.get_bias(name, top_feat_num)
-            print( name, 'conv_biases.shape', conv_biases.shape)
+            print(name, 'conv_biases.shape', conv_biases.shape)
             bias = tf.nn.bias_add(conv, conv_biases)
 
-            if relu:
-                relu = tf.nn.relu(bias)
+            # Batch_normalization
+            if bn:
+                conv_bn = slim.batch_norm(bias, decay=0.997, epsilon=1e-5, scale=True, is_training=is_training)
+                print('conv_bn', conv_bn)
+                print('training_status', is_training)
             else:
-                relu = bias
+                conv_bn = bias
+
+            if relu:
+                relu = tf.nn.relu(conv_bn)
+            else:
+                relu = conv_bn
             # Add summary to Tensorboard
             _activation_summary(relu)
             return relu
-
 
     def _fc_layer(self, bottom, name, num_classes=None,
                   relu=True, debug=False):
@@ -85,7 +91,6 @@ class Layer(object):
                                 summarize=4, first_n=1)
             return bias
 
-
     def _score_layer(self, bottom, name, num_classes):
         with tf.variable_scope(name) as scope:
             # get number of input channels
@@ -109,15 +114,14 @@ class Layer(object):
 
             return bias
 
-
     def _up_layer(self, bottom, shape,
-                       num_classes, name, debug,
-                       ksize=4, stride=2):
+                  num_classes, name, debug,
+                  ksize=4, stride=2):
         strides = [1, stride, stride, 1]
         with tf.variable_scope(name):
             in_features = bottom.get_shape()[3].value
-            print('in_features',in_features)
-            #in_features = 128
+            print('in_features', in_features)
+            # in_features = 128
 
             if shape is None:
                 # Compute shape out of Bottom
@@ -134,7 +138,7 @@ class Layer(object):
             output_shape = tf.stack(new_shape)
             logging.debug("Layer: %s, Fan-in: %d" % (name, in_features))
             f_shape = [ksize, ksize, num_classes, in_features]
-            print('f_shape',f_shape)
+            print('f_shape', f_shape)
             # create
             num_input = ksize * ksize * in_features / stride
             stddev = (2 / num_input) ** 0.5
@@ -176,16 +180,15 @@ class Layer(object):
                                shape=weights.shape)
 
     def get_conv_filter(self, name, shape=None, stddev=0.001):
-        if self.data_dict and self.data_dict.get(name) :
+        if self.data_dict and self.data_dict.get(name):
             init = tf.constant_initializer(value=self.data_dict[name][0],
                                            dtype=tf.float32)
             shape = self.data_dict[name][0].shape
         else:
-            #todo
+            # todo
             print('init by tf.truncated_normal_initializer')
-            init = tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32)
-
-
+            # init = tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32)
+            init = tf.contrib.layers.xavier_initializer()
 
         print('Layer name: %s' % name)
         print('Layers shape: %s' % str(shape))
@@ -199,7 +202,6 @@ class Layer(object):
 
         return var
 
-
     def get_bias(self, name, num_classes=None):
         if self.data_dict and self.data_dict.get(name):
             bias_wights = self.data_dict[name][1]
@@ -209,7 +211,7 @@ class Layer(object):
             shape = [num_classes]
 
             bias_wights = np.random.uniform(0, 0.01, shape)
-        #print('bias',bias_wights)
+        # print('bias',bias_wights)
 
         if name == 'fc8':
             bias_wights = self._bias_reshape(bias_wights, shape[0],
@@ -239,7 +241,7 @@ class Layer(object):
 
     def _bias_reshape(self, bweight, num_orig, num_new):
         """ Build bias weights for filter produces with `_summary_reshape`
-    
+
         """
         n_averaged_elements = num_orig // num_new
         avg_bweight = np.zeros(num_new)
@@ -254,22 +256,22 @@ class Layer(object):
 
     def _summary_reshape(self, fweight, shape, num_new):
         """ Produce weights for a reduced fully-connected layer.
-    
+
         FC8 of VGG produces 1000 classes. Most semantic segmentation
         task require much less classes. This reshapes the original weights
         to be used in a fully-convolutional layer which produces num_new
         classes. To archive this the average (mean) of n adjanced classes is
         taken.
-    
+
         Consider reordering fweight, to perserve semantic meaning of the
         weights.
-    
+
         Args:
           fweight: original weights
           shape: shape of the desired fully-convolutional layer
           num_new: number of new classes
-    
-    
+
+
         Returns:
           Filter weights for `num_new` classes.
         """
@@ -290,18 +292,18 @@ class Layer(object):
 
     def _variable_with_weight_decay(self, shape, stddev, wd):
         """Helper to create an initialized Variable with weight decay.
-    
+
         Note that the Variable is initialized with a truncated normal
         distribution.
         A weight decay is added only if one is specified.
-    
+
         Args:
           name: name of the variable
           shape: list of ints
           stddev: standard deviation of a truncated Gaussian
           wd: add L2Loss weight decay multiplied by this float. If None, weight
               decay is not added for this Variable.
-    
+
         Returns:
           Variable Tensor
         """
@@ -334,6 +336,7 @@ class Layer(object):
                                        dtype=tf.float32)
         return tf.get_variable(name="weights", initializer=init, shape=shape)
 
+
 def _activation_summary(x):
     """Helper to create summaries for activations.
 
@@ -345,9 +348,4 @@ def _activation_summary(x):
     Returns:
       nothing
     """
-    # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
-    # session. This helps the clarity of presentation on tensorboard.
-    tensor_name = x.op.name
-    # tensor_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', x.op.name)
-    tf.summary.histogram(tensor_name + '/activations', x)
-    tf.summary.scalar(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
+    pass

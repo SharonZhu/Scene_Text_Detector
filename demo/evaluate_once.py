@@ -34,11 +34,11 @@ import data.image_util as img
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
 root_path = '../data/data/'
-data_dir = root_path + 'text_data/'
-ann_dir = root_path + 'annotation_json/'
-test_pair_dir = root_path + 'pair_txt/img_ann_pair_train15.txt'
-logs_train_dir_canny = root_path + 'out_model/logs/canny_20k/'
-logs_train_dir_nocanny = root_path + 'out_model/logs/train_nocanny/'
+data_dir = root_path + 'text_data_val/'
+ann_dir = root_path + 'annotation_json_val/'
+test_pair_dir = root_path + 'pair_txt/img_ann_pair_val.txt'
+logs_train_dir_canny = root_path + 'out_model/logs/train/canny/'
+logs_train_dir_nocanny = root_path + 'out_model/logs/train/nocanny/'
 
 NUM_TEST = 15
 BATCH_SIZE = 1
@@ -242,7 +242,7 @@ def detect_one_image(img_dir, anno_dir, logs_train_dir):
         my_vgg16 = VGG16(root_path + 'preNETS/vgg16.npy')
 
         with tf.name_scope('netVgg16') as netVgg16:
-            my_vgg16.build(rgb)
+            my_vgg16.build(rgb, is_training=False)
 
         my_fcn = FCN(my_vgg16)
         with tf.name_scope('netFCN') as netFCN:
@@ -254,9 +254,9 @@ def detect_one_image(img_dir, anno_dir, logs_train_dir):
             #      ('pool2', 4, 32, 1, 3, 32, 32), ('bgr', 3, 32)], fuse_type='concat', debug=False)
             my_fcn.build(
                 [('pool5', 2, 64, 1, 3, 128, 128), ('pool4', 2, 64, 1, 3, 96, 64), ('pool3', 2, 32, 1, 3, 64, 32),
-                 ('pool2', 4, 32, 1, 3, 32, 32), ('bgr', 3, 32)], fuse_type='concat', debug=False)
+                 ('pool2', 4, 32, 1, 3, 32, 32), ('bgr', 3, 32)], fuse_type='concat', debug=False, is_training=False)
 
-        my_east = EAST.EAST(my_fcn.out_layer, task='train')
+        my_east = EAST.EAST(my_fcn.out_layer, task='train', is_training=False)
         predict_score, predict_rbox = my_east.predict()
         print('predict:', predict_score, predict_rbox)
         # predict_score = my_east.predict()
